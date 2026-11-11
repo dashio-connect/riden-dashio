@@ -15,7 +15,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Topic :: System :: Hardware",
 ]
-dependencies = ["dashio>=3.12", "pyserial>=3.5"]
+dependencies = ["dashio>=3.13", "pyserial>=3.5"]
 
 [project.urls]
 Homepage = "https://github.com/dashio-connect/riden-dashio"

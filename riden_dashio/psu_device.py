@@ -336,7 +336,6 @@ class PsuDevice:
 
     def _send_mode(self, mode_protection):
         mode, protection = mode_protection
-        # The colour first: a TextBox sends its colour with the next text, not when the colour is set.
         self.mode.color = dashio.Color.RED if protection else (dashio.Color.ORANGE if mode == "CC" else dashio.Color.GREEN)
         self.mode.text = protection or mode
 

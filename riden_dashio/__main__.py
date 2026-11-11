@@ -23,7 +23,7 @@ class Settings:
         self.filename = filename
         self.config = configparser.ConfigParser()
         self.config.read_dict({
-            "DEVICE": {"device_id": "", "device_name": "", "cfg_rev": "1", "cfg_hash": ""},
+            "DEVICE": {"device_id": "", "device_name": ""},
             "PSU": {"port": "", "address": "1", "max_voltage": "", "max_current": "", "read_only": "no", "poll_interval": "1", "graph_interval": "10",
                     "graph_voltage_max": "", "graph_current_max": ""},  # The graph's axes. Empty: the model's full range
             "DASH": {"username": "", "password": ""},
@@ -70,20 +70,6 @@ class Settings:
         for key, value in (state or {}).items():
             self.config.set("CHARGE_STATE", key, str(value))
         self.save()
-
-
-def update_config_revision(device: dashio.Device, settings: Settings):
-    """The app only fetches the layout again when cfgRev changes, so raise it whenever the layout's hash changes."""
-    cfg_rev = settings.config.getint("DEVICE", "cfg_rev")
-    cfg_hash = device.get_cfg_hash()
-    if cfg_hash != settings.get("DEVICE", "cfg_hash"):
-        if settings.get("DEVICE", "cfg_hash"):
-            cfg_rev += 1
-        settings.config.set("DEVICE", "cfg_rev", str(cfg_rev))
-        settings.config.set("DEVICE", "cfg_hash", cfg_hash)
-        settings.save()
-        log.info("Layout changed, cfgRev is now %d", cfg_rev)
-    device.config_revision = cfg_rev
 
 
 def _stop(signum, frame):
@@ -157,8 +143,8 @@ def main():
         graph_voltage_max=_float_or_none(settings.get("PSU", "graph_voltage_max")),
         graph_current_max=_float_or_none(settings.get("PSU", "graph_current_max")),
     )
-    update_config_revision(device, settings)
-    log.info("Dash device %s (%s) ready, cfgRev %d", device_name, device_id, device.config_revision)
+    # The device reports a hash of its layout, so the app fetches a changed layout without a cfgRev to raise.
+    log.info("Dash device %s (%s) ready, layout %s", device_name, device_id, device.layout_id)
 
     poll_interval = settings.config.getfloat("PSU", "poll_interval")
     signal.signal(signal.SIGTERM, _stop)  # Close cleanly under systemd too

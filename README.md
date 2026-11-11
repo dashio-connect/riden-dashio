@@ -72,7 +72,7 @@ The first run writes `riden.ini`. Edit it to:
 - set `graph_voltage_max` and `graph_current_max`, the tops of the graph's axes, e.g. 5 V and 4 A for charging a cell. Left empty, they're the model's full range
 - add a DashIO `username` and `password`, to reach the device through the Dash server as well as over TCP on the local network. Or set them from the app: connect over TCP, open the device's provisioning menu, and enter the Dash login there. The program saves it here
 
-The ini also keeps the layout's `cfg_rev` and hash. cfgRev goes up by itself when the layout changes.
+The device reports a hash of its layout, so the app fetches a changed layout by itself. Older Dash apps that don't understand the hash need updating.
 
 ## Tests
 
