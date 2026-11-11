@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import logging
 import time
 
@@ -30,6 +31,7 @@ class PsuDevice:
     `save_charge_settings(ChargeSettings)` and `save_charge_state(dict or None)` keep the charge settings, and an active charge,
     across restarts; `charge_state` is the saved active charge, resumed at the first poll.
     `graph_voltage_max` and `graph_current_max` set the graph's axes; by default, the model's full range.
+    The app's provisioning menu can set the PSU's clock, even when `read_only`.
     """
 
     def __init__(self, psu: RD60xx, device: dashio.Device, max_voltage: float | None = None, max_current: float | None = None,
@@ -133,6 +135,7 @@ class PsuDevice:
         self.device.add_control(self.alarm)
         self.device.add_control(self.charged_alarm)
         self._show_charge_settings()
+        self.device.set_clock_callback(self._clock_rx)
 
         if not self.read_only:
             self.v_set.add_receive_message_callback(self._v_set_rx)
@@ -242,6 +245,24 @@ class PsuDevice:
                 self.log_event(f"Preset M{number} not recalled: {e}", dashio.Color.ORANGE)
         self._sent.pop("PRESET", None)
         self.poll()
+
+    def _clock_rx(self, utc: int) -> bool:
+        try:
+            when = datetime.datetime.fromtimestamp(utc)
+        except (ValueError, OverflowError, OSError):
+            self.log_event(f"PSU clock not set: {utc} isn't a time", dashio.Color.ORANGE)
+            return False
+        return self.set_clock(when)
+
+    def set_clock(self, when: datetime.datetime) -> bool:
+        """Sets the PSU's clock to `when`, the host's local time. True if it was set."""
+        try:
+            self.psu.set_clock(when)
+        except IOError as e:
+            self.log_event(f"PSU clock not set: {e}", dashio.Color.ORANGE)
+            return False
+        self.log_event(f"PSU clock set to {when:%Y-%m-%d %H:%M:%S}")
+        return True
 
     # To the app
 

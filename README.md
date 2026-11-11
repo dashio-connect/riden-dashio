@@ -37,9 +37,13 @@ The PSU's memories M1–M9 each hold a voltage, current limit, OVP and OCP. The 
 
 M0 holds the active OVP and OCP, shown beside the selector.
 
+## The clock
+
+The PSU's clock is set from the computer's at startup, in the computer's local time, as the PSU has no time zone. Set `set_clock = no` in the ini to leave it alone. It can also be set from the app: open the device's provisioning menu and set the clock there. The event log shows the time it was set to.
+
 ## How it talks to the PSU
 
-The PSU's USB port is a CH340 serial converter (USB ID `1a86:7523`). It speaks **Modbus RTU** at 115200 baud 8N1, slave address 1. Function 03 reads the holding registers, and function 06 writes a single register. `riden_dashio/rd60xx.py` is a small driver for it, using only pyserial.
+The PSU's USB port is a CH340 serial converter (USB ID `1a86:7523`). It speaks **Modbus RTU** at 115200 baud 8N1, slave address 1. Function 03 reads the holding registers, function 06 writes a single register, and function 16 writes several (the clock, all at once). `riden_dashio/rd60xx.py` is a small driver for it, using only pyserial.
 
 | Register | |
 |---|---|
@@ -51,7 +55,7 @@ The PSU's USB port is a CH340 serial converter (USB ID `1a86:7523`). It speaks *
 | 14 | Input voltage (0.01 V) |
 | 16, 17, 18 | Protection (1 OVP, 2 OCP), CV/CC, output on (write) |
 | 38–39, 40–41 | Ah, Wh (0.001) |
-| 48–53 | The PSU's clock |
+| 48–53 | The PSU's clock: year, month, day, hour, minute, second (write) |
 | 80 + 4n | Preset Mn: V, I, OVP, OCP |
 
 The RD6006 counts 0.01 V and 0.001 A. The RD6006P counts 0.001 V and 0.0001 A.
@@ -68,7 +72,8 @@ The first run writes `riden.ini`. Edit it to:
 
 - set `port`, if it finds the wrong serial port
 - set `max_voltage` and `max_current`, to limit what the app may set, below the model's own limits
-- set `read_only = yes`
+- set `read_only = yes`. The app can still set the PSU's clock
+- set `set_clock = no`, to not set the PSU's clock at startup
 - set `graph_voltage_max` and `graph_current_max`, the tops of the graph's axes, e.g. 5 V and 4 A for charging a cell. Left empty, they're the model's full range
 - add a DashIO `username` and `password`, to reach the device through the Dash server as well as over TCP on the local network. Or set them from the app: connect over TCP, open the device's provisioning menu, and enter the Dash login there. The program saves it here
 

@@ -1,3 +1,4 @@
+import datetime
 import unittest
 from unittest import mock
 
@@ -129,6 +130,26 @@ class TestPsuDevice(unittest.TestCase):
         self.psu_device.poll()
         self.assertEqual(self.psu_device.preset.selection_list[1], "M1 5 V 1 A")
         self.assertEqual(self.device.get_cfg_hash(), before)
+
+    def test_clock_from_app(self):
+        self.assertIn("CLK", self.device._cfg["deviceSetup"].split(","), "The app offers to set the clock")
+        utc = 1762819200
+        reply = self.device._on_message(f"\trdtest\tCLK\t{utc}\n".encode())
+        self.assertEqual(reply, "\trdtest\tCLK\n")
+        when = datetime.datetime.fromtimestamp(utc)  # The host's local time
+        self.assertEqual(self.fake.writes, [(48, (when.year, when.month, when.day, when.hour, when.minute, when.second))])
+
+    def test_clock_from_app_with_request_id(self):
+        self.assertEqual(self.device._on_message(b"\trdtest\tCLK\tR2\t1762819200\n"), "\trdtest\tCLK\n")
+        self.assertEqual(self.fake.writes[0][0], 48)
+
+    def test_clock_out_of_range(self):
+        self.assertEqual(self.device._on_message(b"\trdtest\tCLK\t99999999999999999\n"), "")
+        self.assertEqual(self.fake.writes, [])
+
+    def test_clock_not_set(self):
+        self.fake.fail_next = 3  # Every retry
+        self.assertEqual(self.device._on_message(b"\trdtest\tCLK\t1762819200\n"), "", "The app isn't told it was set")
 
     def test_read_only(self):
         device = dashio.Device("RD60xx", "rdro", "RO")

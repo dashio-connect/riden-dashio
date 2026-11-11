@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import datetime
 import logging
 import os
 import signal
@@ -25,7 +26,8 @@ class Settings:
         self.config.read_dict({
             "DEVICE": {"device_id": "", "device_name": ""},
             "PSU": {"port": "", "address": "1", "max_voltage": "", "max_current": "", "read_only": "no", "poll_interval": "1", "graph_interval": "10",
-                    "graph_voltage_max": "", "graph_current_max": ""},  # The graph's axes. Empty: the model's full range
+                    "graph_voltage_max": "", "graph_current_max": "",  # The graph's axes. Empty: the model's full range
+                    "set_clock": "yes"},  # Set the PSU's clock from this computer's at startup
             "DASH": {"username": "", "password": ""},
             # Li-ion charging. Left empty, the current, cutoff and time limit follow the capacity: 0.5C, C/20, and 1.5x the CC time + 2 h.
             "CHARGE": {"capacity_ah": "6.8", "voltage": "4.20", "current": "", "cutoff": "", "max_hours": "", "max_probe_temp": ""},
@@ -143,6 +145,8 @@ def main():
         graph_voltage_max=_float_or_none(settings.get("PSU", "graph_voltage_max")),
         graph_current_max=_float_or_none(settings.get("PSU", "graph_current_max")),
     )
+    if settings.config.getboolean("PSU", "set_clock"):
+        psu_device.set_clock(datetime.datetime.now().replace(microsecond=0))
     # The device reports a hash of its layout, so the app fetches a changed layout without a cfgRev to raise.
     log.info("Dash device %s (%s) ready, layout %s", device_name, device_id, device.layout_id)
 

@@ -42,6 +42,11 @@ class FakePsu:
                 self.regs[16] = 0  # Turning the output on clears a latched OVP/OCP, as on the real PSU
             self.writes.append((reg, value))
             body = frame[:6]
+        elif func == 16:
+            values = struct.unpack(f">{value}H", frame[7:7 + 2 * value])
+            self.regs[reg:reg + value] = values
+            self.writes.append((reg, values))
+            body = frame[:6]
         else:
             body = bytes([addr, func | 0x80, 1])
         self._reply = body + crc16(body)

@@ -1,3 +1,4 @@
+import datetime
 import unittest
 
 from riden_dashio.rd60xx import RD60xx, ModbusError, crc16
@@ -90,6 +91,17 @@ class TestRD60xx(unittest.TestCase):
     def test_recall_m0_refused(self):
         with self.assertRaises(ValueError):
             self.psu.recall_preset(0)
+
+    def test_set_clock_writes_one_request(self):
+        when = datetime.datetime(2026, 11, 11, 23, 59, 58)
+        self.psu.set_clock(when)
+        self.assertEqual(self.fake.writes, [(48, (2026, 11, 11, 23, 59, 58))],
+                         "All six in one write, so the time can't roll over between registers")
+        self.assertEqual(self.psu.clock(), when)
+
+    def test_unset_clock_is_an_error(self):
+        with self.assertRaises(ValueError):
+            self.psu.clock()  # The fake's clock registers are 0
 
     def test_unknown_model(self):
         fake = FakePsu()

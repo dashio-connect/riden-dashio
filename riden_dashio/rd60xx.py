@@ -1,11 +1,12 @@
 """Modbus RTU driver for the RIDEN RD60xx power supplies (RD6006, RD6006P, RD6012, RD6018, RD6024).
 
 The PSU's USB port is a CH340 serial converter (USB ID 1a86:7523). It speaks Modbus RTU at 115200 baud 8N1,
-slave address 1 by default: function 03 reads holding registers, function 06 writes one.
+slave address 1 by default: function 03 reads holding registers, function 06 writes one, and function 16 writes several.
 """
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import logging
 import struct
 import threading
@@ -38,6 +39,7 @@ REG_V_BATTERY = 33
 REG_EXT_TEMP_SIGN = 34
 REG_AH_HI = 38
 REG_WH_HI = 40
+REG_CLOCK = 48  # Year, month, day, hour, minute, second: the PSU's clock, in the local time it shows
 REG_PRESETS = 80  # M0 to M9, 4 registers each: V, I, OVP, OCP. M0's OVP and OCP are the active protection limits
 REG_OVP = 82
 REG_OCP = 83
@@ -160,6 +162,22 @@ class RD60xx:
         reply = self._transact(request, 8)
         if reply[1:6] != request:
             raise ModbusError(f"Write echo mismatch {reply.hex()}")
+
+    def write_registers(self, address: int, values):
+        """Writes consecutive registers in one request, so they change together."""
+        values = tuple(values)
+        request = struct.pack(f">BHHB{len(values)}H", 16, address, len(values), 2 * len(values), *values)
+        reply = self._transact(request, 8)
+        if reply[1:6] != request[:5]:
+            raise ModbusError(f"Write echo mismatch {reply.hex()}")
+
+    def clock(self) -> datetime.datetime:
+        """The PSU's clock. ValueError if it isn't a valid time."""
+        return datetime.datetime(*self.read_registers(REG_CLOCK, 6))
+
+    def set_clock(self, when: datetime.datetime):
+        """Sets the PSU's clock. It has no time zone: give it the local time it should show."""
+        self.write_registers(REG_CLOCK, (when.year, when.month, when.day, when.hour, when.minute, when.second))
 
     def status(self) -> Status:
         r = self.read_registers(0, STATUS_REG_COUNT)
