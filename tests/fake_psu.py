@@ -1,7 +1,7 @@
 """A simulated RD60xx on a fake serial port: holding registers answered over Modbus RTU."""
 import struct
 
-from rd6006_dashio.rd60xx import crc16
+from riden_dashio.rd60xx import crc16
 
 # Registers 0-41 as read from a real RD6006 (serial 39576, firmware 1.42), output on into a load.
 RD6006_REGS = [60062, 0, 39576, 142, 0, 44, 0, 111, 380, 800, 381, 453, 0, 172, 6473, 0, 0, 0, 1, 0,

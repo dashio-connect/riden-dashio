@@ -1,6 +1,6 @@
 import unittest
 
-from rd6006_dashio.rd60xx import RD60xx, ModbusError, crc16
+from riden_dashio.rd60xx import RD60xx, ModbusError, crc16
 from tests.fake_psu import FakePsu
 
 

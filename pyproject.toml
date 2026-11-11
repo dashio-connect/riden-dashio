@@ -3,15 +3,25 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rd6006-dashio"
+name = "riden-dashio"
 version = "0.1.0"
 description = "A RIDEN RD60xx power supply on USB as a DashIO device for the Dash app"
 readme = "README.md"
 requires-python = ">=3.11"
+authors = [{ name = "James Boulton", email = "james@dashio.com" }]
+license = "MIT"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: System :: Hardware",
+]
 dependencies = ["dashio>=3.12", "pyserial>=3.5"]
 
+[project.urls]
+Homepage = "https://github.com/dashio-connect/riden-dashio"
+
 [project.scripts]
-rd6006_dashio = "rd6006_dashio.__main__:main"
+riden_dashio = "riden_dashio.__main__:main"
 
 [tool.setuptools]
-packages = ["rd6006_dashio"]
+packages = ["riden_dashio"]

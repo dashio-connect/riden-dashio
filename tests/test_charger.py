@@ -1,7 +1,7 @@
 import unittest
 
-from rd6006_dashio.charger import DONE_SECONDS, ChargeError, Charger, ChargeSettings, State
-from rd6006_dashio.rd60xx import REG_CV_CC, REG_I_OUT, REG_OCP, REG_OUTPUT, REG_OVP, REG_PROTECT, REG_V_OUT, REG_V_SET, RD60xx
+from riden_dashio.charger import DONE_SECONDS, ChargeError, Charger, ChargeSettings, State
+from riden_dashio.rd60xx import REG_CV_CC, REG_I_OUT, REG_OCP, REG_OUTPUT, REG_OVP, REG_PROTECT, REG_V_OUT, REG_V_SET, RD60xx
 from tests.fake_psu import FakePsu
 
 
@@ -180,14 +180,14 @@ class TestCharger(unittest.TestCase):
         self.charging(3.9, 3.4)
         self.run_for(120)
         saved = {"started": self.charger.started, "amp_hours": 0.11, "watt_hours": 0.4}
-        charger = Charger(self.psu, self.charger.settings, lambda t, l: None, clock=self.clock)
+        charger = Charger(self.psu, self.charger.settings, lambda text, level: None, clock=self.clock)
         charger.resume(saved, self.psu.status())
         self.assertEqual(charger.state, State.CC)
         self.assertEqual(charger.amp_hours, 0.11)
 
     def test_resume_refused_puts_protection_back(self):
         self.fake.regs[REG_OVP] = 430
-        charger = Charger(self.psu, self.charger.settings, lambda t, l: None, clock=self.clock)
+        charger = Charger(self.psu, self.charger.settings, lambda text, level: None, clock=self.clock)
         charger.resume({"started": "1", "restore_ovp": "62.0", "restore_ocp": "6.2"}, self.psu.status())
         self.assertFalse(charger.active)
         self.assertEqual((self.fake.regs[REG_OVP], self.fake.regs[REG_OCP]), (6200, 6200))
@@ -195,7 +195,7 @@ class TestCharger(unittest.TestCase):
     def test_resume_refused_when_output_off(self):
         self.fake.regs[REG_V_SET] = 420
         saved = []
-        charger = Charger(self.psu, self.charger.settings, lambda t, l: None, save=saved.append, clock=self.clock)
+        charger = Charger(self.psu, self.charger.settings, lambda text, level: None, save=saved.append, clock=self.clock)
         charger.resume({"started": "1"}, self.psu.status())
         self.assertFalse(charger.active)
         self.assertEqual(saved, [None])

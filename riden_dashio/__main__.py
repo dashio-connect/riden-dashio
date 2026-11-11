@@ -1,4 +1,4 @@
-"""rd6006_dashio: an RIDEN RD60xx power supply on USB as a DashIO device for the Dash app."""
+"""riden_dashio: an RIDEN RD60xx power supply on USB as a DashIO device for the Dash app."""
 from __future__ import annotations
 
 import argparse
@@ -15,7 +15,7 @@ from .charger import ChargeSettings
 from .psu_device import PsuDevice
 from .rd60xx import RD60xx, find_port
 
-log = logging.getLogger("rd6006_dashio")
+log = logging.getLogger("riden_dashio")
 
 
 class Settings:
@@ -95,9 +95,9 @@ def _float_or_none(text):
 
 
 def main():
-    parser = argparse.ArgumentParser(prog="rd6006_dashio", description="An RIDEN RD60xx power supply on USB as a DashIO device for the Dash app.")
-    parser.add_argument("-i", "--ini", default="rd6006.ini", help="Settings file. Defaults to rd6006.ini")
-    parser.add_argument("-d", "--db", default="rd6006.db", help="History database for the graph and event log. Defaults to rd6006.db")
+    parser = argparse.ArgumentParser(prog="riden_dashio", description="An RIDEN RD60xx power supply on USB as a DashIO device for the Dash app.")
+    parser.add_argument("-i", "--ini", default="riden.ini", help="Settings file. Defaults to riden.ini")
+    parser.add_argument("-d", "--db", default="riden.db", help="History database for the graph and event log. Defaults to riden.db")
     parser.add_argument("-p", "--port", help="Serial port. Defaults to the ini file's, else the first CH340 port with an RD60xx on it")
     parser.add_argument("--read-only", action="store_true", help="Monitor only: the app can't change the setpoints or output")
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")

@@ -3,8 +3,8 @@ from unittest import mock
 
 import dashio
 
-from rd6006_dashio.psu_device import PsuDevice
-from rd6006_dashio.rd60xx import RD60xx
+from riden_dashio.psu_device import PsuDevice
+from riden_dashio.rd60xx import RD60xx
 from tests.fake_psu import FakePsu
 
 

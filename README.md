@@ -1,4 +1,4 @@
-# rd6006-dashio
+# riden-dashio
 
 A RIDEN RD60xx bench power supply (RD6006, RD6006P, RD6012, RD6018, RD6024) on USB, as a [DashIO](https://pypi.org/project/dashio/) device for the Dash app.
 
@@ -34,7 +34,7 @@ M0 holds the active OVP and OCP, shown beside the selector.
 
 ## How it talks to the PSU
 
-The PSU's USB port is a CH340 serial converter (USB ID `1a86:7523`). It speaks **Modbus RTU** at 115200 baud 8N1, slave address 1. Function 03 reads the holding registers, and function 06 writes a single register. `rd6006_dashio/rd60xx.py` is a small driver for it, using only pyserial.
+The PSU's USB port is a CH340 serial converter (USB ID `1a86:7523`). It speaks **Modbus RTU** at 115200 baud 8N1, slave address 1. Function 03 reads the holding registers, and function 06 writes a single register. `riden_dashio/rd60xx.py` is a small driver for it, using only pyserial.
 
 | Register | |
 |---|---|
@@ -55,11 +55,11 @@ The RD6006 counts 0.01 V and 0.001 A. The RD6006P counts 0.001 V and 0.0001 A.
 
 ```sh
 pip install -e .
-rd6006_dashio            # Finds the PSU on the first CH340 port
-rd6006_dashio --read-only
+riden_dashio            # Finds the PSU on the first CH340 port
+riden_dashio --read-only
 ```
 
-The first run writes `rd6006.ini`. Edit it to:
+The first run writes `riden.ini`. Edit it to:
 
 - set `port`, if it finds the wrong serial port
 - set `max_voltage` and `max_current`, to limit what the app may set, below the model's own limits
@@ -76,3 +76,7 @@ python -m unittest discover -s tests -t .
 ```
 
 The tests use a simulated PSU (`tests/fake_psu.py`), with registers recorded from a real RD6006. They never open a serial port.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
