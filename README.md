@@ -2,6 +2,11 @@
 
 A RIDEN RD60xx bench power supply (RD6006, RD6006P, RD6012, RD6018, RD6024) on USB, as a [DashIO](https://pypi.org/project/dashio/) device for the Dash app.
 
+<p>
+  <img src="docs/images/app-main.png" width="300" alt="The main view in the Dash app, charging a Li-ion battery at 1.5 A">
+  <img src="docs/images/app-graph.png" width="300" alt="The graph view: an earlier charge tapering off, and a new one in constant current at 1.5 A">
+</p>
+
 The app shows:
 
 - the output voltage, current and power, on dials
@@ -24,7 +29,7 @@ While charging, the PSU's own OVP and OCP are set to 0.10 V over the target and 
 
 It stops early, with the output off and an alarm, on OVP/OCP, at the time limit, or when the external probe reaches its limit. A front panel change (output off, or a different voltage) ends the charge mode and leaves the PSU as you set it. A charge in progress carries on after the program restarts.
 
-It's for one Li-ion cell, or cells in parallel (1S): the target is limited to 3.0–4.20 V. The defaults follow the ini's `capacity_ah` (6.8 Ah: 4.20 V, 3.4 A (0.5C), done under 0.34 A (C/20), 5 hours), and can be changed in the app's **Charge settings** menu. While charging, the voltage and current limit boxes are locked; the output button stops the charge.
+It's for one Li-ion cell, or cells in parallel (1S): the target is limited to 3.0–4.20 V. The defaults follow the ini's `capacity_ah` (6.8 Ah: 4.20 V, 3.4 A (0.5C), done under 0.34 A (C/20), 5 hours), and can be changed in the app's provisioning menu (the device's settings), under **Charge settings**. While charging, the voltage and current limit boxes are locked; the output button stops the charge.
 
 ## Presets
 

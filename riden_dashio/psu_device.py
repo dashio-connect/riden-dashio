@@ -13,6 +13,7 @@ from .rd60xx import NUM_PRESETS, Preset, RD60xx, Status
 log = logging.getLogger(__name__)
 
 MODES = ["Supply", "Li-ion charge"]
+PROVISIONING_MENU = "PROV"  # The parent ID that puts a Menu in the app's provisioning menu
 CUSTOM = "Custom"  # The preset selector's first choice: the setpoints don't match a preset
 NOTIFY_COLORS = {"info": dashio.Color.WHITE, "good": dashio.Color.GREEN, "warn": dashio.Color.ORANGE, "bad": dashio.Color.RED, "done": dashio.Color.GREEN}
 
@@ -87,11 +88,14 @@ class PsuDevice:
                                      control_position=_pos(0.5, 0.43, 0.5, 0.1))
 
         # Li-ion charging: the mode, its status, and its settings in a menu
-        self.charge_mode = dashio.Selector("CHMODE", "Mode", selection=MODES, control_position=_pos(0.0, 0.54, 0.3, 0.1))
-        self.charge_menu = dashio.Menu("CHSET", "Charge settings", text="Charge settings", icon_name=dashio.Icon.COG,
-                                       control_position=_pos(0.3, 0.54, 0.2, 0.1))
+        self.charge_mode = dashio.Selector("CHMODE", "Mode", selection=MODES, control_position=_pos(0.0, 0.54, 0.4, 0.1))
         self.charge_status = dashio.TextBox("CHST", "Charge", text_align=dashio.TextAlignment.CENTER, keyboard_type=dashio.Keyboard.NONE,
-                                            control_position=_pos(0.5, 0.54, 0.5, 0.1))
+                                            control_position=_pos(0.4, 0.54, 0.6, 0.1))
+        # The charge settings go in the app's provisioning menu, with the device name and Dash login.
+        # A Menu there still needs a position, though it isn't shown on a view.
+        self.charge_menu = dashio.Menu("CHSET", "Charge settings", text="Charge settings", icon_name=dashio.Icon.COG,
+                                       control_position=_pos(0.0, 0.0, 0.2, 0.1))
+        self.charge_menu.parent_id = PROVISIONING_MENU
         # The PSU's presets M1 to M9, and the active OVP and OCP (M0's). The choices are filled in from the PSU
         # as it runs, rather than given here, so editing a preset on the PSU doesn't change the layout.
         self.preset = dashio.Selector("PRESET", "Preset", control_position=_pos(0.0, 0.65, 0.5, 0.1))
@@ -113,12 +117,13 @@ class PsuDevice:
         self.charged_alarm = dashio.Alarm("CHARGED")  # A charge finished
 
         on_view = [self.v_out, self.i_out, self.p_out, self.v_set, self.i_set, self.output, self.mode, self.v_in,
-                   self.temps, self.energy, self.charge_mode, self.charge_menu, self.charge_status, self.preset, self.limits,
+                   self.temps, self.energy, self.charge_mode, self.charge_status, self.preset, self.limits,
                    self.event_log]
         self.device.add_control(self.view)
         for control in on_view:
             self.device.add_control(control)
             self.view.add_control(control)
+        self.device.add_control(self.charge_menu)
         self.device.add_control(self.graph_view)
         self.device.add_control(self.graph)
         self.graph_view.add_control(self.graph)
@@ -331,8 +336,9 @@ class PsuDevice:
 
     def _send_mode(self, mode_protection):
         mode, protection = mode_protection
-        self.mode.text = protection or mode
+        # The colour first: a TextBox sends its colour with the next text, not when the colour is set.
         self.mode.color = dashio.Color.RED if protection else (dashio.Color.ORANGE if mode == "CC" else dashio.Color.GREEN)
+        self.mode.text = protection or mode
 
     def _check_changes(self, s: Status, charging: bool):
         """Logs what changed on the PSU. While charging, the charger reports these itself."""
