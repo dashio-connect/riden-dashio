@@ -30,6 +30,7 @@ class TestCharger(unittest.TestCase):
         end = self.clock.now + seconds
         while self.clock.now < end and self.charger.active:
             self.clock.now += step
+            self.fake.run(step)
             self.charger.update(self.psu.status())
 
     def charging(self, volts, amps, cv=False):
@@ -175,15 +176,49 @@ class TestCharger(unittest.TestCase):
         self.assertEqual(self.charger.state, State.STOPPED)
         self.assertEqual(self.fake.regs[REG_OUTPUT], 1)  # Left as the user set it
 
+    def test_energy_is_the_charges_not_the_psus(self):
+        self.assertAlmostEqual(self.psu.status().amp_hours, 2.402)  # Left on the PSU's counters from before
+        self.charger.start()
+        self.charging(3.9, 3.4)
+        self.run_for(3600)
+        self.assertAlmostEqual(self.charger.amp_hours, 3.4, places=2)
+        self.assertAlmostEqual(self.charger.watt_hours, 3.9 * 3.4, places=1)
+
+    def test_energy_kept_after_the_charge_until_the_output_goes_on(self):
+        self.charger.start()
+        self.charging(4.2, 1.0, cv=True)
+        self.run_for(360)
+        self.charger.stop("Stopped from the app")
+        self.charger.update(self.psu.status())
+        self.assertEqual(self.charger.state, State.STOPPED)
+        self.assertAlmostEqual(self.charger.amp_hours, 0.1, places=2)
+        self.fake.regs[REG_OUTPUT] = 1
+        self.charger.update(self.psu.status())
+        self.assertEqual(self.charger.state, State.IDLE)
+
     def test_resume(self):
         self.charger.start()
         self.charging(3.9, 3.4)
         self.run_for(120)
-        saved = {"started": self.charger.started, "amp_hours": 0.11, "watt_hours": 0.4}
+        saved = self.saved[-1]
+        self.fake.run(60)  # Still charging while the program restarts
         charger = Charger(self.psu, self.charger.settings, lambda text, level: None, clock=self.clock)
         charger.resume(saved, self.psu.status())
         self.assertEqual(charger.state, State.CC)
-        self.assertEqual(charger.amp_hours, 0.11)
+        charger.update(self.psu.status())
+        self.assertAlmostEqual(charger.amp_hours, 3.4 * 180 / 3600, delta=0.0015, msg="The PSU counted on while the program was down")
+
+    def test_resume_from_a_save_without_the_counters(self):
+        self.charger.start()
+        self.charging(3.9, 3.4)
+        saved = {"started": self.charger.started, "amp_hours": 0.11, "watt_hours": 0.4}
+        charger = Charger(self.psu, self.charger.settings, lambda text, level: None, clock=self.clock)
+        charger.resume(saved, self.psu.status())
+        charger.update(self.psu.status())
+        self.assertAlmostEqual(charger.amp_hours, 0.11)
+        self.fake.run(3600)
+        charger.update(self.psu.status())
+        self.assertAlmostEqual(charger.amp_hours, 3.51, places=3)
 
     def test_resume_refused_puts_protection_back(self):
         self.fake.regs[REG_OVP] = 430

@@ -18,7 +18,21 @@ class FakePsu:
         self.address = address
         self.writes = []
         self.fail_next = 0  # Replies to drop, to test retries
+        self._mah = self._mwh = 0.0  # The parts of a count not yet in the Ah and Wh registers
         self._reply = b""
+
+    def run(self, seconds):
+        """Counts Ah and Wh (registers 38-41, 0.001) for `seconds` at the present output, as the PSU does while it's on."""
+        if not self.regs[18]:
+            return
+        amps, volts = self.regs[11] / 1000, self.regs[10] / 100
+        self._mah += amps * seconds / 3.6
+        self._mwh += amps * volts * seconds / 3.6
+        for reg, part in ((38, "_mah"), (40, "_mwh")):
+            whole = int(getattr(self, part))
+            setattr(self, part, getattr(self, part) - whole)
+            count = ((self.regs[reg] << 16) | self.regs[reg + 1]) + whole
+            self.regs[reg], self.regs[reg + 1] = count >> 16, count & 0xFFFF
 
     # The pyserial methods RD60xx uses
 

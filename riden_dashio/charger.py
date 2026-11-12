@@ -59,7 +59,10 @@ def duration_text(seconds: float) -> str:
 
 class Charger:
     """Call update() with each Status the device reads. notify(text, level) reports events; level is
-    "info", "good", "warn", "bad" (stopped for a fault), or "done". save(dict or None) keeps an active charge across restarts."""
+    "info", "good", "warn", "bad" (stopped for a fault), or "done". save(dict or None) keeps an active charge across restarts.
+
+    amp_hours and watt_hours are the charge's, from the PSU's own counters less their values at the start. They're kept
+    after the charge ends (state DONE or STOPPED) until the output is next switched on (state IDLE)."""
 
     def __init__(self, psu: RD60xx, settings: ChargeSettings, notify, save=None, clock=time.time, sleep=time.sleep):
         self.psu = psu
@@ -76,6 +79,8 @@ class Charger:
         self._last = 0.0
         self._last_save = 0.0
         self._below_since = None
+        self._base: tuple[float, float] | None = None  # The PSU's Ah and Wh counters at the start of the charge
+        self._output_was = False
         self._restore_protection: tuple[float, float] | None = None  # The OVP and OCP from before the charge
 
     @property
@@ -99,6 +104,7 @@ class Charger:
             raise ChargeError(f"{v:.2f} V at the output is over {MAX_CELL_VOLTAGE:.2f} V: not a single Li-ion cell")
         if v >= s.voltage - 0.01:
             raise ChargeError(f"The battery is already at {v:.2f} V, the target is {s.voltage:.2f} V")
+        base = (status.amp_hours, status.watt_hours)  # With the output off, so nothing is counted yet
         self._restore_protection = self.psu.protection()
         try:
             self.psu.set_protection(*self.charge_protection())
@@ -117,6 +123,7 @@ class Charger:
         now = self._clock()
         self.state, self.message = State.CC, ""
         self.amp_hours = self.watt_hours = 0.0
+        self._base = base
         self.started = self._last = now
         self._below_since = None
         self._notify(f"Charge started at {v:.2f} V: {s.current:g} A to {s.voltage:.2f} V, done under {s.cutoff:g} A", "good")
@@ -151,6 +158,8 @@ class Charger:
             self.started = float(saved.get("started", self._clock()))
             self.amp_hours = float(saved.get("amp_hours", 0))
             self.watt_hours = float(saved.get("watt_hours", 0))
+            # Without the counters from the start, carry on from the saved figures
+            self._base = (float(saved["base_ah"]), float(saved["base_wh"])) if "base_ah" in saved else None
             if saved.get("restore_ovp"):
                 self._restore_protection = (float(saved["restore_ovp"]), float(saved["restore_ocp"]))
             self._last = self._last_save = self._clock()
@@ -163,15 +172,16 @@ class Charger:
             self._notify("The charge from before the restart wasn't resumed: the PSU's output or voltage has changed", "warn")
 
     def update(self, status: Status):
+        output_switched_on = status.output and not self._output_was
+        self._output_was = status.output
         if not self.active:
+            if output_switched_on and self.state != State.IDLE:
+                self.state = State.IDLE  # The PSU is in use again: the last charge's figures are done with
             return
         s = self.settings
         now = self._clock()
-        dt = now - self._last
         self._last = now
-        if 0 < dt < 60:
-            self.amp_hours += status.i_out * dt / 3600
-            self.watt_hours += status.p_out * dt / 3600
+        self._count(status)
 
         if status.protection:
             return self._finish(State.STOPPED, f"{status.protection} tripped at {status.v_out:.2f} V, {status.i_out:.3f} A", "bad")
@@ -202,6 +212,14 @@ class Charger:
 
         if now - self._last_save >= SAVE_SECONDS:
             self._save_state(now)
+
+    def _count(self, status: Status):
+        """The charge's Ah and Wh, from the PSU's counters."""
+        if self._base is None or status.amp_hours < self._base[0] or status.watt_hours < self._base[1]:
+            # Not known (resumed from an old save), or the PSU's counters were reset: carry on from here
+            self._base = (status.amp_hours - self.amp_hours, status.watt_hours - self.watt_hours)
+        self.amp_hours = status.amp_hours - self._base[0]
+        self.watt_hours = status.watt_hours - self._base[1]
 
     def summary(self, status: Status | None) -> str:
         if self.active and status:
@@ -241,6 +259,8 @@ class Charger:
     def _save_state(self, now):
         self._last_save = now
         state = {"started": self.started, "amp_hours": round(self.amp_hours, 4), "watt_hours": round(self.watt_hours, 3)}
+        if self._base:
+            state["base_ah"], state["base_wh"] = self._base
         if self._restore_protection:
             state["restore_ovp"], state["restore_ocp"] = self._restore_protection
         self._save(state)

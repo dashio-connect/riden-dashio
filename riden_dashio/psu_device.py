@@ -8,7 +8,7 @@ import time
 
 import dashio
 
-from .charger import MAX_CELL_VOLTAGE, MIN_CELL_VOLTAGE, Charger, ChargeError, ChargeSettings
+from .charger import MAX_CELL_VOLTAGE, MIN_CELL_VOLTAGE, Charger, ChargeError, ChargeSettings, State
 from .rd60xx import NUM_PRESETS, Preset, RD60xx, Status
 
 log = logging.getLogger(__name__)
@@ -319,13 +319,25 @@ class PsuDevice:
         self._send("MODE", (s.mode, s.protection), self._send_mode)
         self._send("VIN", "%.2f" % s.v_in, lambda v: setattr(self.v_in, "text", v))
         self._send("TEMP", f"{s.int_temp} / {s.ext_temp} °C", lambda v: setattr(self.temps, "text", v))
-        self._send("ENERGY", f"{s.amp_hours:.3f} Ah  {s.watt_hours:.3f} Wh", lambda v: setattr(self.energy, "text", v))
+        self._show_energy(s)
         self._show_presets(s)
         self._send("CHMODE", int(self.charger.active), lambda v: setattr(self.charge_mode, "position", v))
         self._send("CHST", self.charger.summary(s), lambda v: setattr(self.charge_status, "text", v))
         self._check_changes(s, charging=was_charging or self.charger.active)
         self._last_status = s
         self._graph(s)
+
+    def _show_energy(self, s: Status):
+        """The charge's Ah and Wh during a charge, and after it until the output is next switched on. Otherwise the PSU's total."""
+        c = self.charger
+        if c.state == State.IDLE:
+            energy = ("PSU total", s.amp_hours, s.watt_hours)
+        else:
+            energy = ("Charge", c.amp_hours, c.watt_hours)
+        self._send("ENERGY", (energy[0], f"{energy[1]:.3f} Ah  {energy[2]:.3f} Wh"), self._send_energy)
+
+    def _send_energy(self, caption_text):
+        self.energy.caption, self.energy.text = caption_text
 
     def _preset_text(self, p: Preset) -> str:
         return f"{p.voltage:g} V {p.current:g} A"

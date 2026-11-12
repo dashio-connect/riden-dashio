@@ -12,7 +12,7 @@ The app shows:
 - the output voltage, current and power, on dials
 - the voltage and current limit setpoints, which you can type in
 - an output on/off button
-- CV/CC mode, OVP/OCP trips, the input voltage, the internal and probe temperatures, and Ah/Wh
+- CV/CC mode, OVP/OCP trips, the input voltage, the internal and probe temperatures, and Ah/Wh: the PSU's running total, or the charge's in Li-ion charge mode
 - the PSU's presets M1–M9, to recall one, and the active OVP and OCP
 - a graph of voltage and current, kept in a local sqlite database
 - an event log, and alarms: `PROT` when OVP or OCP trips or a charge stops on a fault, and `CHARGED` when a charge finishes. Alarms reach your phone through the Dash server
@@ -24,6 +24,8 @@ Through its main output the RD60xx is a plain supply: in CV it holds the voltage
 1. It switches the output off and reads the battery's voltage. It won't start under 2.5 V (no battery), over 4.25 V (not a single cell), or at the target already.
 2. It sets the charge current and the target voltage, and turns the output on: constant current, then constant voltage.
 3. In CV, once the current stays under the cutoff for 30 seconds, it switches the output off, and logs and alarms "Charged" with the Ah and Wh delivered.
+
+The **Energy** box shows the charge's Ah and Wh, captioned **Charge**: the PSU's own counters, less what they were when the charge started. It keeps showing them after the charge ends, until the output is next switched on. Then it goes back to the PSU's running total, captioned **PSU total**, which the PSU only clears when it's switched off.
 
 While charging, the PSU's own OVP and OCP are set to 0.10 V over the target and 1.2× the charge current (at least 0.1 A more), so the PSU protects the battery even if the program stops, the computer sleeps or the USB cable comes out. The limits from before are put back when the charge ends.
 

@@ -4,6 +4,7 @@ from unittest import mock
 
 import dashio
 
+from riden_dashio.charger import State
 from riden_dashio.psu_device import PsuDevice
 from riden_dashio.rd60xx import RD60xx
 from tests.fake_psu import FakePsu
@@ -130,6 +131,13 @@ class TestPsuDevice(unittest.TestCase):
         self.psu_device.poll()
         self.assertEqual(self.psu_device.preset.selection_list[1], "M1 5 V 1 A")
         self.assertEqual(self.device.get_cfg_hash(), before)
+
+    def test_energy_shows_psu_total_or_the_charge(self):
+        p = self.psu_device
+        self.assertEqual((p.energy.caption, p.energy.text), ("PSU total", "2.402 Ah  9.014 Wh"))
+        p.charger.state, p.charger.amp_hours, p.charger.watt_hours = State.DONE, 1.5, 6.0  # A charge just finished
+        p.poll()
+        self.assertEqual((p.energy.caption, p.energy.text), ("Charge", "1.500 Ah  6.000 Wh"))
 
     def test_clock_from_app(self):
         self.assertIn("CLK", self.device._cfg["deviceSetup"].split(","), "The app offers to set the clock")
