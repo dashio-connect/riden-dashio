@@ -122,6 +122,8 @@ class RD60xx:
     def __init__(self, port: str | None = None, address: int = 1, baudrate: int = 115200, timeout: float = 0.5, serial_port=None):
         self.address = address
         self._lock = threading.Lock()
+        self._port = None if serial_port is not None else port  # None: a port given ready made, which reopen() leaves alone
+        self._baudrate, self._timeout = baudrate, timeout
         self._serial = serial_port if serial_port is not None else serial.Serial(port, baudrate, timeout=timeout)
         regs = self.read_registers(REG_MODEL, 4)
         if regs[0] not in MODELS:
@@ -130,6 +132,20 @@ class RD60xx:
         self.model = MODELS[regs[0]]
         self.serial_number = _u32(regs, REG_SERIAL_HI)
         self.firmware = f"{regs[REG_FIRMWARE] // 100}.{regs[REG_FIRMWARE] % 100:02d}"
+
+    def reopen(self):
+        """Opens the serial port again, e.g. after the PSU was switched off and its USB port went away, and checks
+        it's the same PSU. Raises IOError (serial.SerialException or ModbusError) if it isn't there yet."""
+        if self._port is not None:
+            with self._lock:
+                try:
+                    self._serial.close()
+                except (IOError, OSError):
+                    pass
+                self._serial = serial.Serial(self._port, self._baudrate, timeout=self._timeout)
+        regs = self.read_registers(REG_MODEL, 4)
+        if regs[0] != self.model_id or _u32(regs, REG_SERIAL_HI) != self.serial_number:
+            raise ModbusError(f"A different PSU is on {self._port}: model ID {regs[0]}, serial {_u32(regs, REG_SERIAL_HI)}")
 
     def close(self):
         self._serial.close()

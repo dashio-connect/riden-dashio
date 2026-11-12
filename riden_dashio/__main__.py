@@ -27,7 +27,7 @@ class Settings:
             "DEVICE": {"device_id": "", "device_name": ""},
             "PSU": {"port": "", "address": "1", "max_voltage": "", "max_current": "", "read_only": "no", "poll_interval": "1", "graph_interval": "10",
                     "graph_voltage_max": "", "graph_current_max": "",  # The graph's axes. Empty: the model's full range
-                    "set_clock": "yes"},  # Set the PSU's clock from this computer's at startup
+                    "set_clock": "yes"},  # Set the PSU's clock from this computer's at startup, and when the PSU is switched back on
             "DASH": {"username": "", "password": ""},
             # Li-ion charging. Left empty, the current, cutoff and time limit follow the capacity: 0.5C, C/20, and 1.5x the CC time + 2 h.
             "CHARGE": {"capacity_ah": "6.8", "voltage": "4.20", "current": "", "cutoff": "", "max_hours": "", "max_probe_temp": ""},
@@ -144,6 +144,7 @@ def main():
         charge_state=settings.charge_state(),
         graph_voltage_max=_float_or_none(settings.get("PSU", "graph_voltage_max")),
         graph_current_max=_float_or_none(settings.get("PSU", "graph_current_max")),
+        set_clock_on_return=settings.config.getboolean("PSU", "set_clock"),
     )
     if settings.config.getboolean("PSU", "set_clock"):
         psu_device.set_clock(datetime.datetime.now().replace(microsecond=0))

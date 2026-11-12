@@ -1,5 +1,6 @@
 import datetime
 import unittest
+from unittest import mock
 
 from riden_dashio.rd60xx import RD60xx, ModbusError, crc16
 from tests.fake_psu import FakePsu
@@ -102,6 +103,22 @@ class TestRD60xx(unittest.TestCase):
     def test_unset_clock_is_an_error(self):
         with self.assertRaises(ValueError):
             self.psu.clock()  # The fake's clock registers are 0
+
+    def test_reopen(self):
+        self.psu._port = "/dev/cu.usbserial-test"
+        again = FakePsu()
+        with mock.patch("serial.Serial", return_value=again) as opened:
+            self.psu.reopen()
+        opened.assert_called_once_with("/dev/cu.usbserial-test", 115200, timeout=0.5)
+        self.psu.set_output(True)
+        self.assertEqual(again.writes, [(18, 1)], "The new port is used")
+
+    def test_reopen_finds_a_different_psu(self):
+        self.psu._port = "/dev/cu.usbserial-test"
+        other = FakePsu()
+        other.regs[2] = 12345  # Another serial number
+        with mock.patch("serial.Serial", return_value=other), self.assertRaisesRegex(ModbusError, "different PSU"):
+            self.psu.reopen()
 
     def test_unknown_model(self):
         fake = FakePsu()

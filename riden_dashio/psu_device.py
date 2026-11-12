@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 MODES = ["Supply", "Li-ion charge"]
 PROVISIONING_MENU = "PROV"  # The parent ID that puts a Menu in the app's provisioning menu
 CUSTOM = "Custom"  # The preset selector's first choice: the setpoints don't match a preset
+OFF_POLLS = 3  # Polls in a row without an answer before the PSU is taken as off, so one lost reply doesn't count
 NOTIFY_COLORS = {"info": dashio.Color.WHITE, "good": dashio.Color.GREEN, "warn": dashio.Color.ORANGE, "bad": dashio.Color.RED, "done": dashio.Color.GREEN}
 
 
@@ -31,13 +32,16 @@ class PsuDevice:
     `save_charge_settings(ChargeSettings)` and `save_charge_state(dict or None)` keep the charge settings, and an active charge,
     across restarts; `charge_state` is the saved active charge, resumed at the first poll.
     `graph_voltage_max` and `graph_current_max` set the graph's axes; by default, the model's full range.
-    The app's provisioning menu can set the PSU's clock, even when `read_only`.
+    The app's provisioning menu can set the PSU's clock, even when `read_only`. `set_clock_on_return` sets it from this
+    computer's clock when the PSU is switched back on.
+    When the PSU stops answering (switched off, or its USB cable out) the app is told, and the POWER alarm sent; the same
+    when it answers again.
     """
 
     def __init__(self, psu: RD60xx, device: dashio.Device, max_voltage: float | None = None, max_current: float | None = None,
                  read_only: bool = False, graph_interval: float = 10.0, charge_settings: ChargeSettings | None = None,
                  save_charge_settings=None, save_charge_state=None, charge_state: dict | None = None,
-                 graph_voltage_max: float | None = None, graph_current_max: float | None = None):
+                 graph_voltage_max: float | None = None, graph_current_max: float | None = None, set_clock_on_return: bool = False):
         self.psu = psu
         self.device = device
         model = psu.model
@@ -57,6 +61,9 @@ class PsuDevice:
         self._last_status: Status | None = None
         self.status: Status | None = None
         self.presets: list[Preset] = []
+        self.online = True
+        self._failed_polls = 0
+        self.set_clock_on_return = set_clock_on_return
         self._make_controls()
 
     def _make_controls(self):
@@ -117,6 +124,7 @@ class PsuDevice:
         self.event_log = dashio.EventLog("LOG", "Events", control_position=_pos(0.0, 0.76, 1.0, 0.24))
         self.alarm = dashio.Alarm("PROT")  # OVP/OCP, and charges stopped by a fault
         self.charged_alarm = dashio.Alarm("CHARGED")  # A charge finished
+        self.power_alarm = dashio.Alarm("POWER")  # The PSU switched off, or back on
 
         on_view = [self.v_out, self.i_out, self.p_out, self.v_set, self.i_set, self.output, self.mode, self.v_in,
                    self.temps, self.energy, self.charge_mode, self.charge_status, self.preset, self.limits,
@@ -134,6 +142,7 @@ class PsuDevice:
             self.charge_menu.add_control(control)
         self.device.add_control(self.alarm)
         self.device.add_control(self.charged_alarm)
+        self.device.add_control(self.power_alarm)
         self._show_charge_settings()
         self.device.set_clock_callback(self._clock_rx)
 
@@ -293,12 +302,21 @@ class PsuDevice:
     def poll(self):
         """Reads the PSU, runs the charger, and sends what changed. Call it every second or so."""
         try:
+            if not self.online:
+                self.psu.reopen()  # Its serial port may have gone with it
             s = self.psu.status()
         except IOError as e:
-            log.warning("Can't read the PSU: %s", e)
-            for dial in (self.v_out, self.i_out, self.p_out):
-                self._send(dial.control_id, None, lambda v, d=dial: setattr(d, "dial_value", v))
+            self._failed_polls += 1
+            if self.online:
+                log.warning("Can't read the PSU: %s", e)
+                if self._failed_polls >= OFF_POLLS:
+                    self._went_off(e)
+            else:
+                log.debug("The PSU still isn't answering: %s", e)
             return
+        self._failed_polls = 0
+        if not self.online:
+            self._came_back(s)
         self.status = s
         if self._charge_state is not None:
             self.charger.resume(self._charge_state, s)
@@ -326,6 +344,32 @@ class PsuDevice:
         self._check_changes(s, charging=was_charging or self.charger.active)
         self._last_status = s
         self._graph(s)
+
+    def _went_off(self, error):
+        self.online = False
+        name = self.psu.model.name
+        text = f"{name} switched off, or not answering: {error}"
+        self.log_event(text, dashio.Color.RED)
+        self.power_alarm.send(f"{name} off", text)
+        if self.charger.active:
+            self.log_event("Charging: the PSU's OVP and OCP still protect the battery, and the charge is checked when it answers again",
+                           dashio.Color.ORANGE)
+        for dial in (self.v_out, self.i_out, self.p_out):
+            self._send(dial.control_id, None, lambda v, d=dial: setattr(d, "dial_value", v))
+        self._send("MODE", ("", "OFF"), self._send_mode)
+        self._last_status = None  # So what changed while it was off isn't logged as if it happened now
+
+    def _came_back(self, s: Status):
+        self.online = True
+        name = self.psu.model.name
+        text = f"{name} back on" + ("" if s.output else ", output off")
+        self.log_event(text, dashio.Color.GREEN)
+        self.power_alarm.send(f"{name} on", text)
+        self._sent.clear()  # Send everything again
+        if self.charger.active and not s.output:
+            self.charger.stop("The PSU was switched off during the charge", "bad", output_off=False)
+        if self.set_clock_on_return:
+            self.set_clock(datetime.datetime.now().replace(microsecond=0))
 
     def _show_energy(self, s: Status):
         """The charge's Ah and Wh during a charge, and after it until the output is next switched on. Otherwise the PSU's total."""

@@ -15,7 +15,7 @@ The app shows:
 - CV/CC mode, OVP/OCP trips, the input voltage, the internal and probe temperatures, and Ah/Wh: the PSU's running total, or the charge's in Li-ion charge mode
 - the PSU's presets M1–M9, to recall one, and the active OVP and OCP
 - a graph of voltage and current, kept in a local sqlite database
-- an event log, and alarms: `PROT` when OVP or OCP trips or a charge stops on a fault, and `CHARGED` when a charge finishes. Alarms reach your phone through the Dash server
+- an event log, and alarms: `PROT` when OVP or OCP trips or a charge stops on a fault, `CHARGED` when a charge finishes, and `POWER` when the PSU is switched off or back on. Alarms reach your phone through the Dash server
 
 ## Li-ion charge mode
 
@@ -42,6 +42,12 @@ M0 holds the active OVP and OCP, shown beside the selector.
 ## The clock
 
 The PSU's clock is set from the computer's at startup, in the computer's local time, as the PSU has no time zone. Set `set_clock = no` in the ini to leave it alone. It can also be set from the app: open the device's provisioning menu and set the clock there. The event log shows the time it was set to.
+
+## Switching the PSU off and on
+
+When the PSU stops answering for 3 polls in a row (switched off, or its USB cable out), the program logs it, sends the `POWER` alarm, blanks the dials and shows **OFF** as the mode. It keeps trying, opening the serial port again in case it went with the PSU. When the PSU answers, and it's the same one (by serial number), it logs that, sends `POWER` again, and sets the PSU's clock (with `set_clock = yes`).
+
+A charge isn't stopped while the PSU can't be seen: its OVP and OCP still protect the battery. If the PSU comes back with the output off, the charge is stopped with a `PROT` alarm, and the OVP and OCP from before are put back. If only the USB link dropped and the PSU kept charging, the charge carries on.
 
 ## How it talks to the PSU
 
@@ -75,7 +81,7 @@ The first run writes `riden.ini`. Edit it to:
 - set `port`, if it finds the wrong serial port
 - set `max_voltage` and `max_current`, to limit what the app may set, below the model's own limits
 - set `read_only = yes`. The app can still set the PSU's clock
-- set `set_clock = no`, to not set the PSU's clock at startup
+- set `set_clock = no`, to not set the PSU's clock at startup and when it's switched back on
 - set `graph_voltage_max` and `graph_current_max`, the tops of the graph's axes, e.g. 5 V and 4 A for charging a cell. Left empty, they're the model's full range
 - add a DashIO `username` and `password`, to reach the device through the Dash server as well as over TCP on the local network. Or set them from the app: connect over TCP, open the device's provisioning menu, and enter the Dash login there. The program saves it here
 

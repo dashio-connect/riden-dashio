@@ -19,7 +19,15 @@ class FakePsu:
         self.writes = []
         self.fail_next = 0  # Replies to drop, to test retries
         self._mah = self._mwh = 0.0  # The parts of a count not yet in the Ah and Wh registers
+        self.off = False  # Switched off: no replies
         self._reply = b""
+
+    def power_cycle(self):
+        """Back on after being switched off: the output is off and the Ah and Wh counters are cleared."""
+        self.off = False
+        self.regs[18] = 0
+        self.regs[38:42] = [0, 0, 0, 0]
+        self.regs[10:14] = [0, 0, 0, 0]
 
     def run(self, seconds):
         """Counts Ah and Wh (registers 38-41, 0.001) for `seconds` at the present output, as the PSU does while it's on."""
@@ -41,8 +49,8 @@ class FakePsu:
 
     def write(self, frame):
         assert crc16(frame[:-2]) == frame[-2:]
-        if self.fail_next:
-            self.fail_next -= 1
+        if self.fail_next or self.off:
+            self.fail_next = max(self.fail_next - 1, 0)
             return
         addr, func, reg, value = struct.unpack(">BBHH", frame[:6])
         if addr != self.address:

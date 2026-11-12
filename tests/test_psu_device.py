@@ -139,6 +139,70 @@ class TestPsuDevice(unittest.TestCase):
         p.poll()
         self.assertEqual((p.energy.caption, p.energy.text), ("Charge", "1.500 Ah  6.000 Wh"))
 
+    def switch_off(self, polls=3):
+        self.fake.off = True
+        for _ in range(polls):
+            self.psu_device.poll()
+
+    def test_one_missed_reply_isnt_off(self):
+        p = self.psu_device
+        with mock.patch.object(p.power_alarm, "send") as power:
+            self.switch_off(polls=2)
+            self.fake.off = False
+            p.poll()
+        self.assertTrue(p.online)
+        power.assert_not_called()
+
+    def test_switched_off_and_back_on(self):
+        p = self.psu_device
+        with mock.patch.object(p.power_alarm, "send") as power:
+            self.switch_off()
+            self.assertFalse(p.online)
+            power.assert_called_once()
+            self.assertEqual(power.call_args.args[0], "RD6006 off")
+            self.assertEqual((p.mode.text, p.v_out.dial_value), ("OFF", None))
+            p.poll()
+            power.assert_called_once()  # Not again while it stays off
+            self.fake.power_cycle()
+            p.poll()
+        self.assertTrue(p.online)
+        self.assertEqual(power.call_args.args, ("RD6006 on", "RD6006 back on, output off"))
+        self.assertEqual((p.mode.text, p.output.btn_state), ("CV", dashio.ButtonState.OFF))
+
+    def test_charge_stopped_by_switching_off(self):
+        p = self.psu_device
+        p.charger._sleep = lambda seconds: None
+        self.rx(p.charge_mode, "1")
+        self.assertTrue(p.charger.active)
+        self.assertEqual((self.fake.regs[82], self.fake.regs[83]), (430, 4080))  # The charge's OVP and OCP
+        with mock.patch.object(p.alarm, "send") as fault:
+            self.switch_off()
+            self.assertTrue(p.charger.active, "Not stopped while the PSU can't be seen")
+            self.fake.power_cycle()
+            p.poll()
+        self.assertFalse(p.charger.active)
+        self.assertIn("switched off during the charge", p.charger.message)
+        fault.assert_called_once()
+        self.assertEqual((self.fake.regs[82], self.fake.regs[83]), (6200, 6200), "The OVP and OCP from before are put back")
+
+    def test_charge_carries_on_after_the_usb_drops(self):
+        p = self.psu_device
+        p.charger._sleep = lambda seconds: None
+        self.rx(p.charge_mode, "1")
+        self.switch_off()
+        self.fake.off = False  # It was only the USB: the PSU kept charging
+        p.poll()
+        self.assertTrue(p.charger.active)
+
+    def test_clock_set_when_back_on(self):
+        p = self.psu_device
+        p.set_clock_on_return = True
+        self.switch_off()
+        self.fake.power_cycle()
+        self.fake.writes.clear()
+        p.poll()
+        self.assertEqual(self.fake.writes[0][0], 48)
+
     def test_clock_from_app(self):
         self.assertIn("CLK", self.device._cfg["deviceSetup"].split(","), "The app offers to set the clock")
         utc = 1762819200
